@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.schema.json",
+  "provider": {
+    "llama-server": {
+      "options": {
+        "baseURL": "http://192.168.0.191:9931/v1",
+        "apiKey": "sk-dummy"
+      },
+      "models": {
+        "qwen3-8b": {
+          "name": "Qwen 3 8B (Local llama-server)"
+        }
+      }
+    }
+  },
+  "model": "llama-server/qwen3-8b"
+}
