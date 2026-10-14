@@ -45,6 +45,18 @@ def _map(pt, machine, page_height_mm):
     return (round(x, 2), round(y, 2))
 
 
+def _clean(loop):
+    """Drop points that repeat after rounding (including a closing point equal
+    to the start, since generate() adds the closing move itself)."""
+    out = [loop[0]]
+    for pt in loop[1:]:
+        if pt != out[-1]:
+            out.append(pt)
+    while len(out) > 1 and out[-1] == out[0]:
+        out.pop()
+    return out
+
+
 def bounds(points):
     xs = [p[0] for p in points]
     ys = [p[1] for p in points]
@@ -68,7 +80,8 @@ def generate(cfg, jobs, page_height_mm=0.0):
             if not loops:
                 continue
             lines.append(f"; {name} {kind}: {len(loops)}")
-            ordered = order_loops([[_map(p, m, page_height_mm) for p in l] for l in loops])
+            ordered = order_loops([c for c in (_clean([_map(p, m, page_height_mm) for p in l])
+                                      for l in loops) if len(c) > 1])
             for _ in range(mat.get("passes", 1)):
                 for loop in ordered:
                     allpts.extend(loop)
