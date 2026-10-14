@@ -4,14 +4,17 @@
     "llama-server": {
       "options": {
         "baseURL": "http://192.168.0.191:9931/v1",
-        "apiKey": "sk-dummy"
+        "apiKey": "sk-dummy",
+        "timeout": false,
+        "headerTimeout": false,
+        "chunkTimeout": false
       },
       "models": {
-        "qwen3-8b": {
-          "name": "Qwen 3 8B (Local llama-server)"
-        }
+        "default": {
+          "name": "Default model (Local llama-server)"
+        },
       }
     }
   },
-  "model": "llama-server/qwen3-8b"
+  "model": "llama-server/default"
 }

@@ -3,12 +3,19 @@
   <name>Kerf</name>
   <id>us.chouser.laser.kerf</id>
 
+  <param name="preset" type="optiongroup" appearance="combo" gui-text="Kerf outset:">
+    <option value="0.09">0.09 mm</option>
+    <option value="0.04">0.04 mm</option>
+    <option value="custom">Custom (use the value below)</option>
+  </param>
+
   <param
-      name="outset_mm"
+      name="custom_mm"
       type="float"
+      precision="3"
       min="0"
       max="10"
-      gui-text="Kerf outset (mm):">
+      gui-text="Custom outset (mm):">
     0.09
   </param>
 

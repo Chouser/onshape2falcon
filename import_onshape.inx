@@ -3,15 +3,6 @@
   <name>Import Onshape SVG</name>
   <id>us.chouser.laser.import_onshape</id>
 
-  <param
-      name="endpoint_tolerance_mm"
-      type="float"
-      min="0"
-      max="1"
-      gui-text="Endpoint tolerance (mm):">
-    0.001
-  </param>
-
   <effect needs-live-preview="false" needs-document="true">
     <object-type>all</object-type>
     <effects-menu><submenu name="Chouser-Laser"/></effects-menu>
