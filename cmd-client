@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -u
+
+if (($# < 1 || $# > 2)); then
+    printf 'usage: %s COMMAND [SHARED_DIR]\n' "$0" >&2
+    exit 2
+fi
+
+command_name=$1
+SHARED_DIR=${2:-/run/cmd}
+REQUEST_FIFO="$SHARED_DIR/request"
+
+if [[ ! -p "$REQUEST_FIFO" ]]; then
+    printf 'client: request FIFO does not exist: %s\n' "$REQUEST_FIFO" >&2
+    exit 2
+fi
+
+# Unique enough for this local IPC directory.
+id="$$.$BASHPID.$RANDOM"
+dir="$SHARED_DIR/$id"
+
+mkdir "$dir"
+mkfifo "$dir/stdout" "$dir/stderr" "$dir/status"
+
+cleanup() {
+    rm -rf -- "$dir"
+}
+trap cleanup EXIT INT TERM
+
+# Start readers before telling the server about the request.
+# This prevents the server from blocking while opening the output FIFOs.
+cat "$dir/stdout" &
+stdout_pid=$!
+
+cat "$dir/stderr" >&2 &
+stderr_pid=$!
+
+# Send the request.
+printf '%s %s\n' "$id" "$command_name" >"$REQUEST_FIFO"
+
+# The server writes this only after the command has exited.
+IFS= read -r status <"$dir/status"
+
+# Ensure all output has reached the terminal before we exit.
+wait "$stdout_pid"
+wait "$stderr_pid"
+
+exit "$status"

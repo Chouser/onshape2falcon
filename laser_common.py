@@ -41,9 +41,10 @@ def _inside(pt, poly):
         j = i
     return inside
 
-def split_loops(loops):
-    """Group closed loops into independent parts: each outline together
-    with the holes directly inside it (holes first, outline last)."""
+def nest_loops(loops):
+    """For each closed loop return (parent, depth): the smallest loop that
+    contains it (or None) and how many loops enclose it.  Even depth is an
+    outline, odd depth is a hole in its parent."""
     polys = [_polygon(l) for l in loops]
     areas = [_area(p) for p in polys]
     parent = []
@@ -55,23 +56,29 @@ def split_loops(loops):
                     best = j
         parent.append(best)
 
-    def depth(i):
-        d = 0
-        while parent[i] is not None:
-            i = parent[i]
+    depth = []
+    for i in range(len(loops)):
+        d, k = 0, i
+        while parent[k] is not None:
+            k = parent[k]
             d += 1
-        return d
+        depth.append(d)
+    return parent, depth
 
+
+def split_loops(loops):
+    """Group closed loops into independent parts: each outline together
+    with the holes directly inside it (holes first, outline last)."""
+    parent, depth = nest_loops(loops)
     holes = defaultdict(list)
     for i in range(len(loops)):
-        if depth(i) % 2 == 1:
+        if depth[i] % 2 == 1:
             holes[parent[i]].append(i)
     parts = []
     for i in range(len(loops)):
-        if depth(i) % 2 == 0:
+        if depth[i] % 2 == 0:
             cmds = []
             for k in holes[i] + [i]:
                 cmds.extend(loops[k])
             parts.append(inkex.Path(cmds))
     return parts
-
