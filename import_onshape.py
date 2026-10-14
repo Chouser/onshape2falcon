@@ -11,6 +11,7 @@ import tempfile
 from collections import defaultdict
 
 import inkex
+import gcode_core
 from laser_common import mm_to_uu, split_loops
 from inkex import paths
 from lxml import etree
@@ -34,6 +35,7 @@ class ImportOnshape(inkex.EffectExtension):
 
     def effect(self):
         root = self.svg
+        uu_per_mm = mm_to_uu(root, 1)
         shapes = self.flatten(root)
         debug(f"{len(shapes)} shapes after ungrouping")
 
@@ -68,6 +70,25 @@ class ImportOnshape(inkex.EffectExtension):
         debug(f"{len(parts)} separate parts")
         for path in parts + open_pieces:
             root.append(self.make_path(path))
+        self.fit_page_to_bed(uu_per_mm)
+
+    def fit_page_to_bed(self, uu_per_mm):
+        """Resize the page to the machine bed from materials.json, keeping
+        the user-unit scale so the geometry is untouched (the top-left
+        corner stays the origin, so parts outside the bed hang off the page)."""
+        cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "materials.json")
+        try:
+            machine = gcode_core.load_config(cfg_path)["machine"]
+            bed_x, bed_y = machine["bed_x_mm"], machine["bed_y_mm"]
+        except (OSError, ValueError, KeyError) as e:
+            debug(f"page size left alone; cannot read bed size: {e}")
+            return
+        root = self.svg
+        root.set("width", f"{bed_x}mm")
+        root.set("height", f"{bed_y}mm")
+        root.set("viewBox", f"0 0 {bed_x * uu_per_mm:.6g} {bed_y * uu_per_mm:.6g}")
+        debug(f"page set to bed size {bed_x} x {bed_y} mm")
 
     # ---- helpers -------------------------------------------------------
 

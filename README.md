@@ -16,7 +16,10 @@ Install by:
    paths with the diagnostic style (light blue 50% fill, 0.1mm black 50%
    stroke), runs Inkscape's Simplify, joins coincident endpoints into closed
    loops (`ENDPOINT_TOLERANCE_MM`, 0.001), and splits the result into
-   independent parts with their holes.
+   independent parts with their holes. Finally it resizes the page to the
+   machine bed (`bed_x_mm` x `bed_y_mm` in `materials.json`, 400 x 400)
+   without rescaling the geometry, so parts outside the bed hang off the
+   page.
 2. **Kerf** (`kerf.py`). Outsets the selected paths (or all paths if nothing is
    selected) by the chosen kerf with rounded joins, then splits into parts.
    Dropdown presets: 0.09 mm, 0.04 mm, or a custom value.
