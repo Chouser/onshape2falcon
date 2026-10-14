@@ -34,7 +34,8 @@ Install by:
    LaserWeb. Put parts into groups whose Inkscape label (or id) is a material
    name from `materials.json` (power %, feed mm/min, passes, plus a `machine`
    section with bed size, gcode templates and `flip_y`). Each path uses the
-   nearest enclosing material group; paths in none abort with a list. Per
+   nearest enclosing material group. If objects are selected, only those (and
+   the contents of selected groups) are exported, otherwise everything; paths in none abort with a list. Per
    material it cuts all holes, then outlines, each nearest-neighbour ordered,
    and writes `; Bounds:` (as `export-gcode.bb` did) with LF line endings.
    Out-of-bounds is reported as a warning. Output goes to the file chosen in the dialog's file picker; if blank, next to the saved

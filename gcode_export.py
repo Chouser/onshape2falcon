@@ -51,7 +51,8 @@ def flatten(loop, uu_per_mm):
 class GcodeExport(inkex.EffectExtension):
     """Write gcode straight from the SVG.  Each path is cut with the settings
     of the nearest enclosing group whose label (or id) names a material in
-    materials.json.  Per material, all holes are cut before any outlines."""
+    materials.json.  Per material, all holes are cut before any outlines.
+    Only the selected objects are exported, or everything if none are."""
 
     def add_arguments(self, pars):
         pars.add_argument("--gcode_file", default="",
@@ -75,9 +76,17 @@ class GcodeExport(inkex.EffectExtension):
         except (OSError, ValueError) as e:
             raise inkex.AbortExtension(f"Cannot load materials: {e}")
 
-        paths = [e for e in self.svg.iterdescendants()
-                 if isinstance(e, inkex.PathElement)
-                 and not any(isinstance(a, inkex.Defs) for a in e.ancestors())]
+        # Export the selection (selected paths and everything inside selected
+        # groups); with nothing selected, or from the command line, export all.
+        roots = list(self.svg.selection.values()) or [self.svg]
+        seen = set()
+        paths = []
+        for root in roots:
+            for e in [root, *root.iterdescendants()]:
+                if (isinstance(e, inkex.PathElement) and id(e) not in seen
+                        and not any(isinstance(a, inkex.Defs) for a in e.ancestors())):
+                    seen.add(id(e))
+                    paths.append(e)
         if not paths:
             raise inkex.AbortExtension("No path objects to export.")
 
