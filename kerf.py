@@ -34,8 +34,12 @@ class Kerf(inkex.EffectExtension):
         return float(self.options.preset)
 
     def effect(self):
-        selected = [e for e in self.svg.selection.values()
-                    if isinstance(e, inkex.PathElement)]
+        selected = []
+        for e in self.svg.selection.values():
+            # A selected group stands for every path inside it.
+            for p in ([e] if isinstance(e, inkex.PathElement) else e.iterdescendants()):
+                if isinstance(p, inkex.PathElement) and p not in selected:
+                    selected.append(p)
         if not selected:
             # Nothing selected (or run from the command line): kerf everything.
             selected = [e for e in self.svg.iterdescendants()
@@ -45,16 +49,26 @@ class Kerf(inkex.EffectExtension):
             raise inkex.AbortExtension("No path objects to apply kerf to.")
         debug(f"{len(selected)} selected paths")
 
-        # Path > Combine: one path holding every selected subpath.
+        # Paths stay in the group they came from: kerf each parent's paths
+        # together, so a group named for a material keeps its parts.
+        by_parent = {}
+        for elem in selected:
+            by_parent.setdefault(elem.getparent(), []).append(elem)
+        for parent, elems in by_parent.items():
+            debug(f"{len(elems)} path(s) in {parent.get('inkscape:label') or parent.get_id()}")
+            self.kerf_paths(parent, elems)
+
+    def kerf_paths(self, parent, selected):
+        # Path > Combine: one path holding every selected subpath.  Paths
+        # share a parent, so only their own transforms need baking in.
         combined = inkex.Path()
         for elem in selected:
-            combined += elem.path.transform(elem.composed_transform()).to_absolute()
+            combined += elem.path.transform(elem.transform).to_absolute()
         first = selected[0]
-        parent = first.getparent()
         index = list(parent).index(first)
         style = first.style
         for elem in selected:
-            elem.getparent().remove(elem)
+            parent.remove(elem)
 
         target = inkex.PathElement()
         target.set("id", "kerf-target")
