@@ -6,7 +6,7 @@ Extensions > Chouser-Laser.
 
 Install by:
 
-    cp import_onshape.* kerf.* holes_outlines.* laser_common.py ~/.config/inkscape/extensions/
+    ./install.sh
 
 ## Workflow
 
@@ -27,6 +27,20 @@ Install by:
    Run this last: LaserWeb reorders paths within a group, so cut order is
    controlled by selecting the hole groups and outline groups separately.
 
+5. **Export Gcode** (`gcode_export.py`), an alternative to step 4 and
+   LaserWeb. Put parts into groups whose Inkscape label (or id) is a material
+   name from `materials.json` (power %, feed mm/min, passes, plus a `machine`
+   section with bed size, gcode templates and `flip_y`). Each path uses the
+   nearest enclosing material group; paths in none abort with a list. Per
+   material it cuts all holes, then outlines, each nearest-neighbour ordered,
+   and writes `; Bounds:` (as `export-gcode.bb` did) with LF line endings.
+   Out-of-bounds is reported as a warning. Output goes to the file chosen in the dialog's file picker; if blank, next to the saved
+   SVG (`sodipodi:docbase`), else `~/proj/laser-cut/`. The full path is logged.
+   `install.sh` copies
+   `materials.json` too, saving any differing installed copy as `.bak`. The `machine` templates reproduce LaserWeb's marlin output for
+   the CR Falcon (see `p-card-box11-thin.gcode`); `flip_y` measures Y up from
+   the page bottom like LaserWeb.
+
 `laser_common.py` holds shared helpers (`mm_to_uu`, `nest_loops`,
 `split_loops`). Part paths put holes first and the outline last.
 
@@ -38,6 +52,7 @@ the sample files and need to be checked by eye as well.
     ./test_import_onshape.sh   # sample-input01.svg  -> sample-output01.svg
     ./test_kerf.sh             # sample-output01.svg -> sample-kerf01.svg
     ./test_holes_outlines.sh   # sample-kerf01.svg   -> sample-holes01.svg
+    ./test_gcode_export.sh     # sample-kerf01.svg   -> sample-material01.gcode (also runs test_gcode_core.py, plain python)
 
 Each test copies `*.inx` and `*.py` into `test-profile/extensions/`, so no
 install is needed. The tests chain: run them in that order.
@@ -51,6 +66,7 @@ actions in the form `us.chouser.laser.<id-with-dashes>`:
 
     [inkscape]  import-onshape on sample-input01.svg  -> sample-output01.svg
     [kerf]      select-all:all;us.chouser.laser.kerf  on sample-output01.svg -> sample-kerf01.svg
+    [gcode]     us.chouser.laser.gcode-export on sample-material01.svg -> sample-material-out01.svg
     [holes]     select-all:all;us.chouser.laser.holes-outlines on sample-kerf01.svg -> sample-holes01.svg
 
 All use `INKSCAPE_PROFILE_DIR=test-profile/`. If the server isn't running,

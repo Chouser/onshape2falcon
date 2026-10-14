@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+  <name>Export Gcode</name>
+  <id>us.chouser.laser.gcode_export</id>
+
+  <param name="gcode_file" type="path" mode="file_new" filetypes="gcode,nc"
+         gui-text="Gcode file (blank: next to the saved SVG, else ~/proj/laser-cut):"></param>
+  <param name="config" type="string" gui-text="Materials file (blank: materials.json next to the extension):"></param>
+
+  <effect needs-live-preview="false" needs-document="true">
+    <object-type>all</object-type>
+    <effects-menu><submenu name="Chouser-Laser"/></effects-menu>
+  </effect>
+  <script><command reldir="extensions" interpreter="python">gcode_export.py</command></script>
+</inkscape-extension>

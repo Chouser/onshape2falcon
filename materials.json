@@ -1,0 +1,22 @@
+{
+  "_comment": "Group names in the SVG (inkscape:label) select a material below. Settings come from notes.txt; the machine section reproduces LaserWeb's marlin output for the Creality CR Falcon.",
+  "machine": {
+    "bed_x_mm": 400,
+    "bed_y_mm": 400,
+    "flip_y": true,
+    "s_max": 1000,
+    "header": ["G00 G17 G40 G54", "G21         ; Set units to mm", "G90         ; Absolute positioning", "M8"],
+    "footer": ["M9", "G1S0", "M5", "G90", "; return to user-defined finish pos", "G0 X0 Y0", "M2"],
+    "laser_on": "M3\nM3 S{s}",
+    "laser_off": "",
+    "travel": "G0 X{x} Y{y}",
+    "cut": "G1 X{x} Y{y}",
+    "cut_first": "G1 X{x} Y{y} F{feed}"
+  },
+  "materials": {
+    "paper": {"power_pct": 70, "feed_mm_min": 1500, "passes": 1},
+    "cardboard": {"power_pct": 50, "feed_mm_min": 800, "passes": 3},
+    "basswood-1.5mm": {"power_pct": 100, "feed_mm_min": 400, "passes": 1},
+    "plywood-5mm": {"power_pct": 100, "feed_mm_min": 140, "passes": 3}
+  }
+}
