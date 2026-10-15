@@ -8,7 +8,7 @@ except ImportError as e:
     print(f"SKIP: cannot import inkex ({e})")
     sys.exit(0)
 
-here = os.path.dirname(os.path.abspath(__file__))
+here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "extension")
 SVG = """<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
      width="400mm" height="400mm" viewBox="0 0 400 400">
   <g inkscape:label="engrave-plywood">

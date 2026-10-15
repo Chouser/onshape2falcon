@@ -6,7 +6,7 @@
 input="sample-kerf01.svg"
 output="sample-holes01.svg"
 
-cp *.inx *.py test-profile/extensions/
+cp extension/* test-profile/extensions/
 if [ "$AGENT" == "false" ]; then
   INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.holes-outlines" "$input" --export-filename="$output"
 else

@@ -6,7 +6,7 @@
 input="sample-output01.svg"
 output="sample-kerf01.svg"
 
-cp *.inx *.py test-profile/extensions/
+cp extension/* test-profile/extensions/
 if [ "$AGENT" == "false" ]; then
   INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.kerf" "$input" --export-filename="$output"
 else

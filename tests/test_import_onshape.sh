@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
 # Test script for ImportOnshape extension
-input="sample-input01.svg"
+input="tests/data/sample-input01.svg"
 output="sample-output01.svg"
 
 # Run extension
-cp *.inx *.py test-profile/extensions/
+cp extension/* test-profile/extensions/
 if [ "$AGENT" == "false" ]; then
   INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.import-onshape" "$input" --export-filename="$output"
 else

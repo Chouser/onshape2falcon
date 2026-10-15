@@ -1,6 +1,9 @@
-import json, gcode_core as g
+import json, os, sys
+ext = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "extension")
+sys.path.insert(0, ext)
+import gcode_core as g
 
-cfg = json.load(open("materials.json"))
+cfg = json.load(open(os.path.join(ext, "materials.json")))
 cfg["machine"]["flip_y"] = False
 sq = lambda x, y, s: [(x, y), (x + s, y), (x + s, y + s), (x, y + s)]
 text, warn = g.generate(cfg, [("plywood-5mm", [sq(10, 10, 5)], [sq(0, 0, 50)])])

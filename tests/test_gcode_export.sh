@@ -4,7 +4,7 @@
 # Server command needed in cmd-server COMMANDS:
 #   [gcode]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.gcode-export" "sample-material01.svg" --export-filename="sample-material-out01.svg"'
 
-python3 test_gcode_core.py || exit 1
+python3 tests/test_gcode_core.py || exit 1
 
 input="sample-kerf01.svg"
 wrapped="sample-material01.svg"
@@ -22,7 +22,7 @@ s = s.replace("</g>\n</svg>", '<path d="M 100 100 L 400 100 L 400 400" style="fi
 open(sys.argv[2], "w").write(s)
 PY
 
-cp *.inx *.py materials.json test-profile/extensions/
+cp extension/* test-profile/extensions/
 if [ "$AGENT" == "false" ]; then
   INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.gcode-export" "$wrapped" --export-filename=sample-material-out01.svg
 else

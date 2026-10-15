@@ -6,7 +6,7 @@
 # Check sample-shared-out01.svg by eye: red = skipped stretch, green = the
 # neighbour's edge that cuts it.
 
-python3 test_shared_edges.py || exit 1
+python3 tests/test_shared_edges.py || exit 1
 
 cat > sample-shared01.svg <<'SVG'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -21,7 +21,7 @@ cat > sample-shared01.svg <<'SVG'
 </svg>
 SVG
 
-cp *.inx *.py materials.json test-profile/extensions/
+cp extension/* test-profile/extensions/
 log=$(./cmd-client shared cmd-dir/ 2>&1); echo "$log"
 if echo "$log" | grep -q -E "Traceback|No path objects"; then
   echo -e "\e[31mTest failed: extension error\e[0m"; exit 1

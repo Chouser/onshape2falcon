@@ -122,16 +122,16 @@ change:
 
 ## Testing
 
-There is no unit-test setup; the tests run the extensions in real Inkscape on
+There is no unit-test setup; run the tests from the repo root. They run the extensions in real Inkscape on
 the sample files and need to be checked by eye as well.
 
-    ./test_import_onshape.sh   # sample-input01.svg  -> sample-output01.svg
-    ./test_kerf.sh             # sample-output01.svg -> sample-kerf01.svg
-    ./test_holes_outlines.sh   # sample-kerf01.svg   -> sample-holes01.svg
-    ./test_shared_edges.sh     # synthetic sample-shared01.svg -> sample-shared-out01.svg, then Export Gcode (also runs test_shared_edges.py)
-    ./test_gcode_export.sh     # sample-kerf01.svg   -> sample-material01.gcode (also runs test_gcode_core.py, plain python)
+    ./tests/test_import_onshape.sh   # tests/data/sample-input01.svg  -> sample-output01.svg
+    ./tests/test_kerf.sh             # sample-output01.svg -> sample-kerf01.svg
+    ./tests/test_holes_outlines.sh   # sample-kerf01.svg   -> sample-holes01.svg
+    ./tests/test_shared_edges.sh     # synthetic sample-shared01.svg -> sample-shared-out01.svg, then Export Gcode (also runs test_shared_edges.py)
+    ./tests/test_gcode_export.sh     # sample-kerf01.svg   -> sample-material01.gcode (also runs test_gcode_core.py, plain python)
 
-Each test copies `*.inx` and `*.py` into `test-profile/extensions/`, so no
+Each test copies `extension/*` into `test-profile/extensions/`, so no
 install is needed. The tests chain: run them in that order.
 
 Set `AGENT=false` to run Inkscape directly. Otherwise (the default) the tests
@@ -140,7 +140,7 @@ call `./cmd-client NAME cmd-dir/`, which asks a server running on the host
 can't be imported because numpy is missing) to run a fixed command. The server
 script isn't in this repo; its `COMMANDS` table needs these entries:
 
-    [inkscape]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.import-onshape" "sample-input01.svg" --export-filename="sample-output01.svg"'
+    [inkscape]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.import-onshape" "tests/data/sample-input01.svg" --export-filename="sample-output01.svg"'
     [kerf]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.kerf" "sample-output01.svg" --export-filename="sample-kerf01.svg"'
     [holes]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.holes-outlines" "sample-kerf01.svg" --export-filename="sample-holes01.svg"'
     [shared]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.mark-shared-edges" "sample-shared01.svg" --export-filename="sample-shared-out01.svg"'

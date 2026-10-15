@@ -1,4 +1,5 @@
-import math
+import math, os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "extension"))
 import hatch
 
 sq = lambda x, y, w, h=None: [(x, y), (x + w, y), (x + w, y + (h or w)), (x, y + (h or w))]
