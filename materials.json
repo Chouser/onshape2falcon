@@ -12,12 +12,16 @@
     "laser_off": "",
     "travel": "G0 X{x} Y{y}",
     "cut": "G1 X{x} Y{y}",
+    "lead": "G0 X{x} Y{y} F{feed}",
     "cut_first": "G1 X{x} Y{y} F{feed}"
   },
   "materials": {
     "paper": {"power_pct": 70, "feed_mm_min": 1500, "passes": 1},
     "cardboard": {"power_pct": 50, "feed_mm_min": 800, "passes": 3},
     "basswood-1.5mm": {"power_pct": 100, "feed_mm_min": 400, "passes": 1},
-    "plywood-5mm": {"power_pct": 100, "feed_mm_min": 140, "passes": 3}
+    "plywood-5mm": {"power_pct": 100, "feed_mm_min": 140, "passes": 3},
+    "engrave-plywood": {"power_pct": 30, "feed_mm_min": 3000, "passes": 1,
+      "fill": {"line_spacing_mm": 0.1, "angle_deg": 0, "lead_in_mm": 3, "lead_out_mm": 3,
+               "perimeter_pass": true}}
   }
 }

@@ -60,6 +60,34 @@ feed rate (rapids use `travel_mm_min` in the `machine` section of
    Stretches marked by Mark Shared Edges are left out; the rest of such a
    shape is cut as one open path.
 
+    **Fill (engraving).** A material whose entry in `materials.json` has a
+`fill` section is engraved instead of cut: the inside of each path (holes left
+out) is hatched with parallel lines, going back and forth. For example:
+
+    ```
+    "engrave-plywood": {"power_pct": 30, "feed_mm_min": 3000, "passes": 1,
+      "fill": {"line_spacing_mm": 0.1, "angle_deg": 0,
+               "lead_in_mm": 3, "lead_out_mm": 3, "perimeter_pass": true}}
+    ```
+
+    - `line_spacing_mm` (required): distance between lines; smaller is denser.
+    - `angle_deg`: direction of the lines, counter-clockwise from the X axis as
+      you see it on the bed (default 0).
+    - `lead_in_mm` / `lead_out_mm`: each line is extended this far beyond the
+      shape at both ends, travelled with the laser off at the cutting feed rate, so
+      the head is at full speed when it enters and leaves the shape (default 0).
+      The extra travel counts toward the bounds check.
+    - `perimeter_pass`: after hatching a shape, trace its outline and holes once.
+      `perimeter_power_pct` and `perimeter_feed_mm_min` override the material's
+      power and feed for that pass.
+    - `passes` repeats the hatching, not the perimeter pass.
+
+    Name a group after the material and put the shapes in it, as for cutting.
+Shared edges are not applied to filled shapes. The lead moves use the
+`lead` template in the `machine` section (`G0` with its own `F` by default),
+which assumes your firmware keeps the laser off for `G0`, as the rapids between
+cuts already do. Check this at low power before trusting it.
+
 5. **Separate Holes and Outlines** (`holes_outlines.py`)
 
    Produces an `outlines` group and a `holes` group; each contains one `part-N`

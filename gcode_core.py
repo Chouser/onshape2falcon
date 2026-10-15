@@ -5,6 +5,8 @@ import json
 import math
 import re
 
+import hatch
+
 
 class OpenPath(list):
     """A polyline that must not be closed.  Plain lists are closed loops."""
@@ -15,7 +17,36 @@ def load_config(path):
         cfg = json.load(f)
     if "machine" not in cfg or "materials" not in cfg:
         raise ValueError(f"{path}: needs 'machine' and 'materials'")
+    for name, mat in cfg["materials"].items():
+        if isinstance(mat, dict) and "fill" in mat:
+            try:
+                check_fill(mat["fill"])
+            except ValueError as e:
+                raise ValueError(f"{path}: material {name!r}: {e}")
     return cfg
+
+
+FILL_KEYS = {"line_spacing_mm", "angle_deg", "lead_in_mm", "lead_out_mm",
+             "perimeter_pass", "perimeter_power_pct", "perimeter_feed_mm_min"}
+
+
+def check_fill(fill):
+    """Raise ValueError if a material's "fill" settings are unusable."""
+    if not isinstance(fill, dict):
+        raise ValueError("'fill' must be an object")
+    unknown = set(fill) - FILL_KEYS
+    if unknown:
+        raise ValueError(f"unknown fill setting(s): {', '.join(sorted(unknown))}")
+    num = lambda k: isinstance(fill.get(k), (int, float)) and not isinstance(fill.get(k), bool)
+    if not num("line_spacing_mm") or fill["line_spacing_mm"] <= 0:
+        raise ValueError("fill needs line_spacing_mm greater than 0")
+    for k in ("angle_deg", "lead_in_mm", "lead_out_mm", "perimeter_power_pct",
+              "perimeter_feed_mm_min"):
+        if k in fill and not num(k):
+            raise ValueError(f"fill {k} must be a number")
+    for k in ("lead_in_mm", "lead_out_mm"):
+        if fill.get(k, 0) < 0:
+            raise ValueError(f"fill {k} can't be negative")
 
 
 def _dist(a, b):
@@ -139,39 +170,115 @@ def bounds(points):
     return min(xs), min(ys), max(xs), max(ys)
 
 
+def _power(m, pct):
+    return f'{m["s_max"] * pct / 100:.2f}'
+
+
+def _clean_all(loops, m, page_height_mm):
+    """Map loops to machine coordinates and drop the degenerate ones."""
+    return [c for c in (_clean(type(l)(_map(p, m, page_height_mm) for p in l))
+                        for l in loops) if len(c) > 1]
+
+
+def _emit_loop(lines, m, loop, s, feed):
+    x0, y0 = loop[0]
+    lines.append(m["travel"].format(x=_fmt(x0), y=_fmt(y0)))
+    lines.append(m["laser_on"].format(s=s))
+    moves = loop[1:]
+    if not isinstance(loop, OpenPath):
+        moves = moves + [loop[0]]
+    for i, (x, y) in enumerate(moves):
+        tpl = m["cut_first"] if i == 0 else m["cut"]
+        lines.append(tpl.format(x=_fmt(x), y=_fmt(y), feed=feed))
+    if m["laser_off"]:
+        lines.append(m["laser_off"])
+
+
+def _lead_points(seg, lead_in, lead_out):
+    """Where a fill line really starts and ends: the segment extended along
+    its own direction by the lead-in and lead-out."""
+    (x0, y0), (x1, y1) = seg
+    d = math.hypot(x1 - x0, y1 - y0)
+    ux, uy = (x1 - x0) / d, (y1 - y0) / d
+    return ((x0 - ux * lead_in, y0 - uy * lead_in),
+            (x1 + ux * lead_out, y1 + uy * lead_out))
+
+
+def _emit_fill(lines, allpts, m, name, mat, shape, passes):
+    """Hatch one shape (a list of loops in machine coordinates), then trace
+    its perimeter if asked.  Returns the head position afterwards."""
+    fill = mat["fill"]
+    s = _power(m, mat["power_pct"])
+    feed = mat["feed_mm_min"]
+    lead_in = fill.get("lead_in_mm", 0)
+    lead_out = fill.get("lead_out_mm", 0)
+    lead_tpl = m.get("lead", "G0 X{x} Y{y} F{feed}")
+    segs = hatch.hatch_segments(shape, fill["line_spacing_mm"], fill.get("angle_deg", 0))
+    pos = None
+    if segs:
+        lines.append(f"; {name} fill: {len(segs)} line(s), "
+                     f"spacing {fill['line_spacing_mm']}mm, angle {fill.get('angle_deg', 0)}")
+    for _ in range(passes if segs else 0):
+        for seg in segs:
+            a, b = _lead_points(seg, lead_in, lead_out)
+            allpts.extend((a, b))
+            lines.append(m["travel"].format(x=_fmt(a[0]), y=_fmt(a[1])))
+            lines.append(m["laser_on"].format(s=s))
+            if lead_in > 0:
+                lines.append(lead_tpl.format(x=_fmt(seg[0][0]), y=_fmt(seg[0][1]), feed=feed))
+            lines.append(m["cut_first"].format(x=_fmt(seg[1][0]), y=_fmt(seg[1][1]), feed=feed))
+            if lead_out > 0:
+                lines.append(lead_tpl.format(x=_fmt(b[0]), y=_fmt(b[1]), feed=feed))
+            pos = b
+        if m["laser_off"]:
+            lines.append(m["laser_off"])
+    if fill.get("perimeter_pass"):
+        ps = _power(m, fill.get("perimeter_power_pct", mat["power_pct"]))
+        pfeed = fill.get("perimeter_feed_mm_min", feed)
+        lines.append(f"; {name} fill perimeter: {len(shape)}")
+        for loop in order_loops(shape, start=pos or (0.0, 0.0)):
+            allpts.extend(loop)
+            _emit_loop(lines, m, loop, ps, pfeed)
+            pos = loop[0]
+    return pos
+
+
 def generate(cfg, jobs, page_height_mm=0.0):
-    """jobs: list of (material_name, holes, outlines), each a list of loops.
-    Holes of every job are cut before its outlines.  Returns (gcode_text,
-    warnings)."""
+    """jobs: list of (material_name, holes, outlines[, fills]).  holes and
+    outlines are lists of loops; holes of every job are cut before its
+    outlines.  fills, for materials with "fill" settings, is a list of
+    shapes, each a list of loops: the shape's interior is hatched (loops
+    inside others are holes), then its perimeter traced if the material says
+    so.  Returns (gcode_text, warnings)."""
     m = cfg["machine"]
     warnings = []
     lines = []
     allpts = []
-    for name, holes, outlines in jobs:
+    for name, holes, outlines, *rest in jobs:
         mat = cfg["materials"][name]
-        s = f'{m["s_max"] * mat["power_pct"] / 100:.2f}'
+        fills = rest[0] if rest else []
+        if fills and "fill" not in mat:
+            raise ValueError(f"material {name!r} has no 'fill' settings")
+        s = _power(m, mat["power_pct"])
         feed = mat["feed_mm_min"]
-        lines.append(f"; material {name}: {mat['power_pct']}% F{feed} x{mat.get('passes', 1)}")
+        passes = mat.get("passes", 1)
+        lines.append(f"; material {name}: {mat['power_pct']}% F{feed} x{passes}")
         for kind, loops in (("holes", holes), ("outlines", outlines)):
             if not loops:
                 continue
             lines.append(f"; {name} {kind}: {len(loops)}")
-            ordered = order_loops([c for c in (_clean(type(l)(_map(p, m, page_height_mm) for p in l))
-                                      for l in loops) if len(c) > 1])
-            for _ in range(mat.get("passes", 1)):
+            ordered = order_loops(_clean_all(loops, m, page_height_mm))
+            for _ in range(passes):
                 for loop in ordered:
                     allpts.extend(loop)
-                    x0, y0 = loop[0]
-                    lines.append(m["travel"].format(x=_fmt(x0), y=_fmt(y0)))
-                    lines.append(m["laser_on"].format(s=s))
-                    moves = loop[1:]
-                    if not isinstance(loop, OpenPath):
-                        moves = moves + [loop[0]]
-                    for i, (x, y) in enumerate(moves):
-                        tpl = m["cut_first"] if i == 0 else m["cut"]
-                        lines.append(tpl.format(x=_fmt(x), y=_fmt(y), feed=feed))
-                    if m["laser_off"]:
-                        lines.append(m["laser_off"])
+                    _emit_loop(lines, m, loop, s, feed)
+        shapes = [c for c in (_clean_all(sh, m, page_height_mm) for sh in fills) if c]
+        pos = (0.0, 0.0)
+        while shapes:
+            # Nearest shape first, judged by where its first loop starts.
+            shape = min(shapes, key=lambda sh: _dist(pos, sh[0][0]))
+            shapes.remove(shape)
+            pos = _emit_fill(lines, allpts, m, name, mat, shape, passes) or shape[0][0]
     if not allpts:
         raise ValueError("no geometry to cut")
     x0, y0, x1, y1 = bounds(allpts)

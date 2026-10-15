@@ -44,7 +44,12 @@ class GcodeExport(inkex.EffectExtension):
     of the nearest enclosing group whose label (or id) names a material in
     materials.json.  Per material, all holes are cut before any outlines.
     Only the selected objects are exported, or everything if none are.
-    Stretches marked by Mark Shared Edges are cut once (see shared_edges.py)."""
+    Stretches marked by Mark Shared Edges are cut once (see shared_edges.py).
+
+    A material with "fill" settings in materials.json is engraved instead of
+    cut: the inside of each path (holes left out) is hatched with parallel
+    lines, and optionally its perimeter traced afterwards.  Shared edges are
+    not applied to fills."""
 
     def add_arguments(self, pars):
         pars.add_argument("--gcode_file", default="",
@@ -111,7 +116,17 @@ class GcodeExport(inkex.EffectExtension):
                 continue
             path = elem.path.to_absolute().transform(elem.composed_transform()).to_absolute()
             loops = list(path.break_apart())
-            holes, outlines = jobs.setdefault(mat, ([], []))
+            holes, outlines, fills = jobs.setdefault(mat, ([], [], []))
+            if "fill" in cfg["materials"][mat]:
+                # One shape per path: every subpath goes to the hatcher, which
+                # treats the ones inside others as holes.  An open subpath is
+                # filled as if closed, and its perimeter is traced as drawn.
+                shape = []
+                for l in loops:
+                    pts = flatten(l, uu_per_mm)
+                    shape.append(pts if is_closed(l, pts) else gcode_core.OpenPath(pts))
+                fills.append(shape)
+                continue
             # Nesting treats every subpath as implicitly closed, so an outline
             # left open (e.g. where it abuts a neighbour) still has its holes.
             # Only the cutting differs: a subpath that isn't closed is cut as
@@ -134,7 +149,7 @@ class GcodeExport(inkex.EffectExtension):
                 + ", ".join(cfg["materials"]) + "): " + ", ".join(unassigned[:10]))
 
         text, warnings = gcode_core.generate(
-            cfg, [(m, h, o) for m, (h, o) in jobs.items()],
+            cfg, [(m, h, o, f) for m, (h, o, f) in jobs.items()],
             self.svg.get_viewbox()[3] / uu_per_mm)
         for w in warnings:
             debug(w)
@@ -151,8 +166,9 @@ class GcodeExport(inkex.EffectExtension):
                 f.write(text)
         except OSError as e:
             raise inkex.AbortExtension(f"Cannot write {out}: {e}")
-        for m, (h, o) in jobs.items():
-            debug(f"{m}: {len(h)} hole(s), {len(o)} outline(s)")
+        for m, (h, o, f) in jobs.items():
+            debug(f"{m}: {len(f)} filled shape(s)" if f else
+                  f"{m}: {len(h)} hole(s), {len(o)} outline(s)")
         if skipped:
             debug(f"{skipped} subpath(s) had shared edges left out")
         cut_s, travel_s = gcode_core.estimate_time(text, cfg["machine"])
