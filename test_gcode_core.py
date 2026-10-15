@@ -98,4 +98,17 @@ for bad in ({}, {"line_spacing_mm": 0}, {"line_spacing_mm": 1, "lead_in_mm": -1}
             raise SystemExit(f"should reject fill {bad}")
         except ValueError as e:
             assert "paper" in str(e)
+# --- Preview polylines (y flipped back to SVG space; a repeated pass is kept once).
+pv_text = ("G0 X0 Y0\nG0 X10 Y0 F100\nG1 X20 Y0 F100\nG1 X20 Y10\nG0 X0 Y0\n"
+           "G0 X10 Y0 F100\nG1 X20 Y0 F100\nG1 X20 Y10\n")
+pv = g.preview_paths(pv_text, {"flip_y": True}, 100)
+assert pv == {"cut": [[(10, 100), (20, 100), (20, 90)]],
+              "lead": [[(0, 100), (10, 100)]],
+              "travel": [[(20, 90), (0, 100)]]}, pv
+assert g.preview_paths(pv_text, {}, 100)["cut"] == [[(10, 0), (20, 0), (20, 10)]]
+# Real output: each fill line is its own cut polyline with a lead at each end.
+t, _ = g.generate(fcfg, [("engrave", [], [], [[sq2(20, 20, 10)]])])
+pv = g.preview_paths(t, fcfg["machine"], 100)
+assert len(pv["lead"]) == 20, len(pv["lead"])
+assert len(pv["cut"]) == 11 and len(pv["cut"][-1]) == 5, [len(p) for p in pv["cut"]]  # 10 lines + perimeter
 print("ok")

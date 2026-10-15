@@ -6,6 +6,15 @@ from collections import defaultdict
 import inkex
 
 
+PREVIEW_LABEL = "gcode-preview"  # layer Export Gcode draws; never part of a job
+
+
+def in_preview(elem):
+    """True for anything inside the gcode preview layer, which the other
+    extensions must skip when they fall back to "all paths"."""
+    return any(a.get("inkscape:label") == PREVIEW_LABEL for a in elem.ancestors())
+
+
 def mm_to_uu(svg, mm):
     """Millimetres to user units (accounts for the viewBox scale, which
     svg.unittouu ignores when the document has no namedview units)."""

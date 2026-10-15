@@ -153,6 +153,36 @@ def estimate_time(text, machine=None):
     return cut, travel
 
 
+def preview_paths(text, machine, page_height_mm=0.0):
+    """Gcode -> polylines to draw over the SVG: {"cut": [...], "lead": [...],
+    "travel": [...]}, each a list of polylines (lists of (x, y) in mm in SVG
+    page coordinates, undoing flip_y).  Consecutive moves of one kind that
+    join end to start make one polyline, and a polyline repeated by extra
+    passes is kept once."""
+    flip = (machine or {}).get("flip_y")
+    to_svg = (lambda p: (p[0], page_height_mm - p[1])) if flip else (lambda p: p)
+    out = {"cut": [], "lead": [], "travel": []}
+    seen = set()
+    cur = None
+
+    def flush():
+        if cur and (cur[0], tuple(cur[1])) not in seen:
+            seen.add((cur[0], tuple(cur[1])))
+            out[cur[0]].append(cur[1])
+
+    for kind, a, b, _ in parse_moves(text, machine):
+        a, b = to_svg(a), to_svg(b)
+        if a == b:
+            continue
+        if cur and cur[0] == kind and cur[1][-1] == a:
+            cur[1].append(b)
+        else:
+            flush()
+            cur = (kind, [a, b])
+    flush()
+    return out
+
+
 def format_duration(seconds):
     s = int(round(seconds))
     h, rem = divmod(s, 3600)

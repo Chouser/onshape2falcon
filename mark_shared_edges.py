@@ -4,7 +4,7 @@ import inkex
 from inkex.paths import Line, Move
 
 import shared_edges
-from laser_common import flatten, is_closed, mm_to_uu
+from laser_common import flatten, in_preview, is_closed, mm_to_uu
 
 DEBUG = True
 GROUP = "shared-edges"
@@ -43,7 +43,8 @@ class MarkSharedEdges(inkex.EffectExtension):
         for root in roots:
             for e in [root, *root.iterdescendants()]:
                 if isinstance(e, inkex.PathElement) and id(e) not in seen \
-                        and not any(isinstance(a, inkex.Defs) for a in e.ancestors()):
+                        and not any(isinstance(a, inkex.Defs) for a in e.ancestors()) \
+                        and not in_preview(e):
                     seen.add(id(e))
                     elems.append(e)
         if not elems:

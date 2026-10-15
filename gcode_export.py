@@ -6,10 +6,13 @@ import inkex
 
 import gcode_core
 import shared_edges
-from laser_common import flatten, is_closed, mm_to_uu, nest_loops
+from laser_common import PREVIEW_LABEL, flatten, is_closed, mm_to_uu, nest_loops
 
 DEBUG = True
 DEFAULT_DIR = "~/proj/laser-cut"
+
+# What the preview layer draws, bottom to top: label, colour, line width in mm.
+PREVIEW_STYLES = (("travel", "#3b82f6", 0.08), ("lead", "#f5a000", 0.1), ("cut", "#e00000", 0.15))
 
 
 def expand(path):
@@ -49,11 +52,17 @@ class GcodeExport(inkex.EffectExtension):
     A material with "fill" settings in materials.json is engraved instead of
     cut: the inside of each path (holes left out) is hatched with parallel
     lines, and optionally its perimeter traced afterwards.  Shared edges are
-    not applied to fills."""
+    not applied to fills.
+
+    Afterwards the gcode is drawn into a locked `gcode-preview` layer (unless
+    turned off), replacing the previous one: red where the laser fires, orange
+    for laser-off lead-in/out moves, dashed blue for travel."""
 
     def add_arguments(self, pars):
         pars.add_argument("--gcode_file", default="",
                           help="gcode file (default: next to the SVG, else ~/proj/laser-cut)")
+        pars.add_argument("--preview", type=inkex.Boolean, default=True,
+                          help="draw the gcode into a gcode-preview layer")
         pars.add_argument("--config", default="",
                           help="materials file (default: next to this script)")
 
@@ -64,6 +73,27 @@ class GcodeExport(inkex.EffectExtension):
                 if name and name.lower() in lowered:
                     return lowered[name.lower()]
         return None
+
+    def add_preview(self, text, machine, uu_per_mm, page_height_mm):
+        """Draw the gcode just generated into a new layer."""
+        layer = inkex.Layer.new(PREVIEW_LABEL)
+        layer.set("sodipodi:insensitive", "true")  # locked: no accidental clicks
+        self.svg.add(layer)
+        polylines = gcode_core.preview_paths(text, machine, page_height_mm)
+        for kind, color, width_mm in PREVIEW_STYLES:
+            if not polylines[kind]:
+                continue
+            d = " ".join("M " + " L ".join(f"{x * uu_per_mm:.3f} {y * uu_per_mm:.3f}"
+                                           for x, y in line)
+                         for line in polylines[kind])
+            el = layer.add(inkex.PathElement())
+            el.set("d", d)
+            el.set("inkscape:label", kind)
+            style = {"fill": "none", "stroke": color,
+                     "stroke-width": f"{width_mm * uu_per_mm:.4f}", "stroke-linecap": "round"}
+            if kind == "travel":
+                style["stroke-dasharray"] = f"{uu_per_mm:.4f},{uu_per_mm:.4f}"
+            el.style = style
 
     def shared_edge_skips(self, uu_per_mm):
         """Stretches drawn by Mark Shared Edges, as {"pathid:subpath": [pts]}."""
@@ -88,6 +118,12 @@ class GcodeExport(inkex.EffectExtension):
             cfg = gcode_core.load_config(cfg_path)
         except (OSError, ValueError) as e:
             raise inkex.AbortExtension(f"Cannot load materials: {e}")
+
+        # Drop the preview from any earlier run so it is never exported or
+        # shown stale.
+        for g in [g for g in self.svg.iterdescendants()
+                  if g.get("inkscape:label") == PREVIEW_LABEL]:
+            g.getparent().remove(g)
 
         # Export the selection (selected paths and everything inside selected
         # groups); with nothing selected, or from the command line, export all.
@@ -148,9 +184,9 @@ class GcodeExport(inkex.EffectExtension):
                 "Paths not inside a material group (known: "
                 + ", ".join(cfg["materials"]) + "): " + ", ".join(unassigned[:10]))
 
+        page_height_mm = self.svg.get_viewbox()[3] / uu_per_mm
         text, warnings = gcode_core.generate(
-            cfg, [(m, h, o, f) for m, (h, o, f) in jobs.items()],
-            self.svg.get_viewbox()[3] / uu_per_mm)
+            cfg, [(m, h, o, f) for m, (h, o, f) in jobs.items()], page_height_mm)
         for w in warnings:
             debug(w)
         out = expand(self.options.gcode_file or "")
@@ -175,6 +211,9 @@ class GcodeExport(inkex.EffectExtension):
         debug(f"estimated run time: {gcode_core.format_duration(cut_s + travel_s)} "
               f"(cutting {gcode_core.format_duration(cut_s)}, "
               f"travel {gcode_core.format_duration(travel_s)})")
+        if self.options.preview:
+            self.add_preview(text, cfg["machine"], uu_per_mm, page_height_mm)
+            debug(f"drew preview layer {PREVIEW_LABEL!r}")
         debug(f"wrote {out}")
 
 

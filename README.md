@@ -88,6 +88,14 @@ Shared edges are not applied to filled shapes. The lead moves use the
 which assumes your firmware keeps the laser off for `G0`, as the rapids between
 cuts already do. Check this at low power before trusting it.
 
+    **Preview.** After writing the gcode, Export Gcode draws it into a locked
+`gcode-preview` layer so you can check it before cutting: red where the laser
+fires, orange for the laser-off lead-in/out moves, dashed blue for travel. It is
+read back from the gcode text, so it shows exactly what will run. The next
+export replaces the layer (untick "Draw the gcode in a gcode-preview layer" to
+remove it without drawing a new one), and the other extensions ignore it.
+Delete the layer before sending the SVG anywhere you don't want it.
+
 5. **Separate Holes and Outlines** (`holes_outlines.py`)
 
    Produces an `outlines` group and a `holes` group; each contains one `part-N`

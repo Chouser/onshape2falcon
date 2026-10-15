@@ -7,7 +7,7 @@ import tempfile
 import inkex
 from lxml import etree
 
-from laser_common import mm_to_uu, split_loops
+from laser_common import in_preview, mm_to_uu, split_loops
 
 DEBUG = True
 
@@ -44,7 +44,8 @@ class Kerf(inkex.EffectExtension):
             # Nothing selected (or run from the command line): kerf everything.
             selected = [e for e in self.svg.iterdescendants()
                         if isinstance(e, inkex.PathElement)
-                        and not isinstance(e.getparent(), inkex.Defs)]
+                        and not isinstance(e.getparent(), inkex.Defs)
+                        and not in_preview(e)]
         if not selected:
             raise inkex.AbortExtension("No path objects to apply kerf to.")
         debug(f"{len(selected)} selected paths")

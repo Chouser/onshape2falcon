@@ -2,7 +2,7 @@
 
 import inkex
 
-from laser_common import nest_loops
+from laser_common import in_preview, nest_loops
 
 DEBUG = True
 
@@ -34,7 +34,8 @@ class HolesOutlines(inkex.EffectExtension):
             # Nothing selected (or run from the command line): use everything.
             selected = [e for e in self.svg.iterdescendants()
                         if isinstance(e, inkex.PathElement)
-                        and not isinstance(e.getparent(), inkex.Defs)]
+                        and not isinstance(e.getparent(), inkex.Defs)
+                        and not in_preview(e)]
         if not selected:
             raise inkex.AbortExtension("No path objects to separate.")
 
