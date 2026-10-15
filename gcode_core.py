@@ -5,6 +5,10 @@ import json
 import math
 
 
+class OpenPath(list):
+    """A polyline that must not be closed.  Plain lists are closed loops."""
+
+
 def load_config(path):
     with open(path) as f:
         cfg = json.load(f)
@@ -48,11 +52,11 @@ def _map(pt, machine, page_height_mm):
 def _clean(loop):
     """Drop points that repeat after rounding (including a closing point equal
     to the start, since generate() adds the closing move itself)."""
-    out = [loop[0]]
+    out = type(loop)([loop[0]])
     for pt in loop[1:]:
         if pt != out[-1]:
             out.append(pt)
-    while len(out) > 1 and out[-1] == out[0]:
+    while not isinstance(out, OpenPath) and len(out) > 1 and out[-1] == out[0]:
         out.pop()
     return out
 
@@ -80,7 +84,7 @@ def generate(cfg, jobs, page_height_mm=0.0):
             if not loops:
                 continue
             lines.append(f"; {name} {kind}: {len(loops)}")
-            ordered = order_loops([c for c in (_clean([_map(p, m, page_height_mm) for p in l])
+            ordered = order_loops([c for c in (_clean(type(l)(_map(p, m, page_height_mm) for p in l))
                                       for l in loops) if len(c) > 1])
             for _ in range(mat.get("passes", 1)):
                 for loop in ordered:
@@ -88,7 +92,10 @@ def generate(cfg, jobs, page_height_mm=0.0):
                     x0, y0 = loop[0]
                     lines.append(m["travel"].format(x=_fmt(x0), y=_fmt(y0)))
                     lines.append(m["laser_on"].format(s=s))
-                    for i, (x, y) in enumerate(loop[1:] + [loop[0]]):
+                    moves = loop[1:]
+                    if not isinstance(loop, OpenPath):
+                        moves = moves + [loop[0]]
+                    for i, (x, y) in enumerate(moves):
                         tpl = m["cut_first"] if i == 0 else m["cut"]
                         lines.append(tpl.format(x=_fmt(x), y=_fmt(y), feed=feed))
                     if m["laser_off"]:

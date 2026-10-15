@@ -30,14 +30,32 @@ To install:  `./install.sh`
 
    Now you're all set to duplicate, position, rotate, etc. to form groups that will fit on your cutting material and bed. Also label each group with the material id from `materials.json` (e.g. `plywood-5mm`)
 
-3. **Export Gcode** (`gcode_export.py`)
+3. **Mark Shared Edges** (`mark_shared_edges.py`), optional
+
+   Where kerfed neighbours touch, both parts would cut the same line twice.
+   This finds edges of a later shape that run alongside an earlier shape's
+   (within the tolerance, default 0.1 mm, and roughly parallel) and draws them
+   in a `shared-edges` group: red `skipped` stretches won't be cut, green `kept`
+   stretches are the neighbour's edge that cuts it instead. Shapes stay
+   closed, so hole detection is unaffected. Check that the red and green
+   look right before exporting. Run it after arranging parts; the marks don't
+   follow moved shapes, and re-running replaces them. The earlier shape in
+   document order keeps the shared edge.
+
+4. **Export Gcode** (`gcode_export.py`)
 
    Generates a Creality Falcon gcode file for the selected paths (or all paths if none selected), based on the nearest enclosing group with a material id as its name. If this doesn't work for your laser cutter, see "Separate Holes and Outlines below".
 
    The generated gcode is arranged to cut all holes first, then outlines,
    each nearest-neighbor ordered.
 
-4. **Separate Holes and Outlines** (`holes_outlines.py`)
+   Paths are closed only if they end in `z` or already end where they
+   started. Open paths are cut as drawn, with no closing move, but still count as
+   enclosing shapes, so an open outline's holes are still cut first.
+   Stretches marked by Mark Shared Edges are left out; the rest of such a
+   shape is cut as one open path.
+
+5. **Separate Holes and Outlines** (`holes_outlines.py`)
 
    Produces an `outlines` group and a `holes` group; each contains one `part-N`
    subgroup per original path, with matching labels so holes pair with their
@@ -69,6 +87,7 @@ the sample files and need to be checked by eye as well.
     ./test_import_onshape.sh   # sample-input01.svg  -> sample-output01.svg
     ./test_kerf.sh             # sample-output01.svg -> sample-kerf01.svg
     ./test_holes_outlines.sh   # sample-kerf01.svg   -> sample-holes01.svg
+    ./test_shared_edges.sh     # synthetic sample-shared01.svg -> sample-shared-out01.svg, then Export Gcode (also runs test_shared_edges.py)
     ./test_gcode_export.sh     # sample-kerf01.svg   -> sample-material01.gcode (also runs test_gcode_core.py, plain python)
 
 Each test copies `*.inx` and `*.py` into `test-profile/extensions/`, so no
@@ -83,6 +102,7 @@ script isn't in this repo; its `COMMANDS` table needs these entries:
     [inkscape]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.import-onshape" "sample-input01.svg" --export-filename="sample-output01.svg"'
     [kerf]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.kerf" "sample-output01.svg" --export-filename="sample-kerf01.svg"'
     [holes]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.holes-outlines" "sample-kerf01.svg" --export-filename="sample-holes01.svg"'
+    [shared]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.mark-shared-edges" "sample-shared01.svg" --export-filename="sample-shared-out01.svg"'
     [gcode]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.gcode-export" "sample-material01.svg" --export-filename="sample-material-out01.svg"'
 
 All use `INKSCAPE_PROFILE_DIR=test-profile/`. If the server isn't running,

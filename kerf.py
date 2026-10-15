@@ -63,7 +63,7 @@ class Kerf(inkex.EffectExtension):
         # share a parent, so only their own transforms need baking in.
         combined = inkex.Path()
         for elem in selected:
-            combined += elem.path.transform(elem.transform).to_absolute()
+            combined += elem.path.to_absolute().transform(elem.transform).to_absolute()
         first = selected[0]
         index = list(parent).index(first)
         style = first.style
@@ -145,7 +145,7 @@ class Kerf(inkex.EffectExtension):
         debug(f"{len(found)} path(s) after union")
         if len(found) != 1:
             raise inkex.AbortExtension("offset result not found")
-        return found[0].path.transform(found[0].composed_transform()).to_absolute()
+        return found[0].path.to_absolute().transform(found[0].composed_transform()).to_absolute()
 
 
 if __name__ == "__main__":

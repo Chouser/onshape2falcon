@@ -114,7 +114,7 @@ class ImportOnshape(inkex.EffectExtension):
             if not isinstance(elem, inkex.ShapeElement):
                 continue
             try:
-                path = elem.path.transform(elem.composed_transform())
+                path = elem.path.to_absolute().transform(elem.composed_transform())
             except Exception:
                 continue
             out.append({"elem": elem, "path": path.to_absolute(),
@@ -221,7 +221,7 @@ class ImportOnshape(inkex.EffectExtension):
         for e in old:
             self.svg.remove(e)
         for e in new:
-            self.svg.append(self.make_path(e.path.transform(e.composed_transform()).to_absolute()))
+            self.svg.append(self.make_path(e.path.to_absolute().transform(e.composed_transform()).to_absolute()))
 
     @staticmethod
     def _close(a, b, tol):

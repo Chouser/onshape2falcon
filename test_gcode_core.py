@@ -16,4 +16,7 @@ cfg["machine"]["flip_y"] = False
 t, _ = g.generate(cfg, [("paper", [], [[(0, 0), (0.001, 0), (10, 0), (10, 10), (0, 0.002)]])])
 assert [l for l in t.splitlines() if l.startswith("G1 X")] == \
     ["G1 X10.00 Y0.00 F1500", "G1 X10.00 Y10.00", "G1 X0.00 Y0.00"], t
+t, _ = g.generate(cfg, [("paper", [], [g.OpenPath([(0, 0), (10, 0), (10, 10)])])])
+assert [l for l in t.splitlines() if l.startswith("G1 X")] == \
+    ["G1 X10.00 Y0.00 F1500", "G1 X10.00 Y10.00"], t   # no closing move
 print("ok")

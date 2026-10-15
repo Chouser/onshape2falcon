@@ -47,7 +47,7 @@ class HolesOutlines(inkex.EffectExtension):
         outlines_group.set("inkscape:label", "outlines")
 
         for n, elem in enumerate(selected, 1):
-            path = elem.path.transform(elem.composed_transform()).to_absolute()
+            path = elem.path.to_absolute().transform(elem.composed_transform()).to_absolute()
             loops = list(path.break_apart())
             _, depth = nest_loops(loops)
             holes = [l for l, d in zip(loops, depth) if d % 2 == 1]

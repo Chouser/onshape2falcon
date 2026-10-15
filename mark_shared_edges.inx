@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+  <name>Mark Shared Edges</name>
+  <id>us.chouser.laser.mark_shared_edges</id>
+
+  <param name="tolerance" type="float" precision="3" min="0.01" max="5"
+         gui-text="Max distance between shared edges (mm):">0.1</param>
+  <param name="min_length" type="float" precision="2" min="0.1" max="100"
+         gui-text="Shortest stretch to mark (mm):">5.0</param>
+
+  <effect needs-live-preview="false" needs-document="true">
+    <object-type>all</object-type>
+    <effects-menu><submenu name="onshape2falcon"/></effects-menu>
+  </effect>
+  <script><command reldir="extensions" interpreter="python">mark_shared_edges.py</command></script>
+</inkscape-extension>

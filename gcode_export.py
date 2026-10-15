@@ -1,16 +1,37 @@
 #!/usr/bin/env python3
 
-import math
 import os
 
 import inkex
 
 import gcode_core
-from laser_common import mm_to_uu, nest_loops
+import shared_edges
+from laser_common import flatten, is_closed, mm_to_uu, nest_loops
 
 DEBUG = True
-DEFAULT_DIR = os.path.expanduser("~/proj/laser-cut")
-STEP_MM = 0.2  # target spacing of points when flattening curves
+DEFAULT_DIR = "~/proj/laser-cut"
+
+
+def expand(path):
+    """expanduser, with fallbacks for when Inkscape's environment has no HOME
+    and no passwd entry: the passwd entry, then the home implied by where this
+    extension is installed (~/.config/inkscape/extensions)."""
+    path = os.path.expanduser(path)
+    if not path.startswith("~"):
+        return path
+    rest = path[2:] if path[1:2] == os.sep else path[1:]
+    homes = []
+    try:
+        import pwd
+        homes.append(pwd.getpwuid(os.getuid()).pw_dir)
+    except (ImportError, KeyError):
+        pass
+    here = os.path.abspath(__file__)
+    if f"{os.sep}.config{os.sep}" in here:
+        homes.append(here.split(f"{os.sep}.config{os.sep}")[0])
+    if homes:
+        return os.path.join(homes[0], rest)
+    raise inkex.AbortExtension(f"Cannot find your home directory to expand {path!r}")
 
 
 def debug(message):
@@ -18,41 +39,12 @@ def debug(message):
         inkex.utils.debug(f"GcodeExport: {message}")
 
 
-def flatten(loop, uu_per_mm):
-    """Closed single-subpath inkex.Path -> list of (x, y) in mm."""
-    pts = []
-    for seg in loop.proxy_iterator():
-        if seg.letter in "zZ":
-            continue
-        if seg.letter in "mM":
-            pts.append((seg.end_point.x, seg.end_point.y))
-            continue
-        a = seg.previous_end_point
-        b = seg.end_point
-        if seg.letter in "lLhHvV":
-            n = 1
-        else:
-            span = math.hypot(b.x - a.x, b.y - a.y) / uu_per_mm
-            n = max(4, min(200, math.ceil(span * 1.5 / STEP_MM)))
-        for k in range(1, n + 1):
-            p = seg.point(k / n)
-            pts.append((p.x, p.y))
-    pts = [(x / uu_per_mm, y / uu_per_mm) for x, y in pts]
-    out = [pts[0]]
-    for p in pts[1:]:
-        if abs(p[0] - out[-1][0]) > 1e-4 or abs(p[1] - out[-1][1]) > 1e-4:
-            out.append(p)
-    if len(out) > 1 and abs(out[0][0] - out[-1][0]) < 1e-4 \
-            and abs(out[0][1] - out[-1][1]) < 1e-4:
-        out.pop()
-    return out
-
-
 class GcodeExport(inkex.EffectExtension):
     """Write gcode straight from the SVG.  Each path is cut with the settings
     of the nearest enclosing group whose label (or id) names a material in
     materials.json.  Per material, all holes are cut before any outlines.
-    Only the selected objects are exported, or everything if none are."""
+    Only the selected objects are exported, or everything if none are.
+    Stretches marked by Mark Shared Edges are cut once (see shared_edges.py)."""
 
     def add_arguments(self, pars):
         pars.add_argument("--gcode_file", default="",
@@ -67,6 +59,22 @@ class GcodeExport(inkex.EffectExtension):
                 if name and name.lower() in lowered:
                     return lowered[name.lower()]
         return None
+
+    def shared_edge_skips(self, uu_per_mm):
+        """Stretches drawn by Mark Shared Edges, as {"pathid:subpath": [pts]}."""
+        skips = {}
+        for g in self.svg.iterdescendants():
+            if g.get("inkscape:label") != "skipped":
+                continue
+            parent = g.getparent()
+            if parent is None or parent.get("inkscape:label") != "shared-edges":
+                continue
+            for e in g.iterdescendants():
+                if isinstance(e, inkex.PathElement) and e.get("data-loop"):
+                    path = e.path.to_absolute().transform(e.composed_transform()).to_absolute()
+                    skips.setdefault(e.get("data-loop"), []).append(
+                        flatten(path, uu_per_mm))
+        return skips
 
     def effect(self):
         here = os.path.dirname(os.path.abspath(__file__))
@@ -84,13 +92,16 @@ class GcodeExport(inkex.EffectExtension):
         for root in roots:
             for e in [root, *root.iterdescendants()]:
                 if (isinstance(e, inkex.PathElement) and id(e) not in seen
-                        and not any(isinstance(a, inkex.Defs) for a in e.ancestors())):
+                        and not any(isinstance(a, inkex.Defs) or a.get("inkscape:label") == "shared-edges"
+                                    for a in e.ancestors())):
                     seen.add(id(e))
                     paths.append(e)
         if not paths:
             raise inkex.AbortExtension("No path objects to export.")
 
         uu_per_mm = mm_to_uu(self.svg, 1)
+        skips = self.shared_edge_skips(uu_per_mm)
+        skipped = 0
         jobs = {}
         unassigned = []
         for elem in paths:
@@ -98,12 +109,25 @@ class GcodeExport(inkex.EffectExtension):
             if mat is None:
                 unassigned.append(elem.get_id())
                 continue
-            path = elem.path.transform(elem.composed_transform()).to_absolute()
+            path = elem.path.to_absolute().transform(elem.composed_transform()).to_absolute()
             loops = list(path.break_apart())
-            _, depth = nest_loops(loops)
             holes, outlines = jobs.setdefault(mat, ([], []))
-            for loop, d in zip(loops, depth):
-                (holes if d % 2 else outlines).append(flatten(loop, uu_per_mm))
+            # Nesting treats every subpath as implicitly closed, so an outline
+            # left open (e.g. where it abuts a neighbour) still has its holes.
+            # Only the cutting differs: a subpath that isn't closed is cut as
+            # drawn, and stretches marked by Mark Shared Edges are left out.
+            _, depth = nest_loops(loops)
+            for k, (l, d) in enumerate(zip(loops, depth)):
+                pts = flatten(l, uu_per_mm)
+                closed = is_closed(l, pts)
+                pieces = shared_edges.apply_skips(
+                    pts, closed, skips.get(f"{elem.get_id()}:{k}", []))
+                if pieces is None:
+                    pieces = [pts if closed else gcode_core.OpenPath(pts)]
+                else:
+                    pieces = [gcode_core.OpenPath(p) for p in pieces]
+                    skipped += 1
+                (holes if d % 2 else outlines).extend(pieces)
         if unassigned:
             raise inkex.AbortExtension(
                 "Paths not inside a material group (known: "
@@ -114,18 +138,23 @@ class GcodeExport(inkex.EffectExtension):
             self.svg.get_viewbox()[3] / uu_per_mm)
         for w in warnings:
             debug(w)
-        out = os.path.expanduser(self.options.gcode_file or "")
+        out = expand(self.options.gcode_file or "")
         if not out:
             # input_file is a temp copy; use the document's own name and,
             # when Inkscape provides it (saved documents), its directory.
             name = self.svg.get("sodipodi:docname") or "export.svg"
-            base = self.svg.get("sodipodi:docbase") or DEFAULT_DIR
+            base = self.svg.get("sodipodi:docbase") or expand(DEFAULT_DIR)
             out = os.path.join(base, os.path.splitext(name)[0] + ".gcode")
         out = os.path.abspath(out)
-        with open(out, "w", newline="\n") as f:
-            f.write(text)
+        try:
+            with open(out, "w", newline="\n") as f:
+                f.write(text)
+        except OSError as e:
+            raise inkex.AbortExtension(f"Cannot write {out}: {e}")
         for m, (h, o) in jobs.items():
             debug(f"{m}: {len(h)} hole(s), {len(o)} outline(s)")
+        if skipped:
+            debug(f"{skipped} subpath(s) had shared edges left out")
         debug(f"wrote {out}")
 
 

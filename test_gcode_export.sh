@@ -17,6 +17,8 @@ import re, sys
 s = open(sys.argv[1]).read()
 s = re.sub(r"(<defs[^>]*/>)", r'\1\n<g inkscape:label="plywood-5mm">', s, count=1)
 s = s.replace("</svg>", "</g>\n</svg>")
+# Add a clearly open polyline: the export must not close it.
+s = s.replace("</g>\n</svg>", '<path d="M 100 100 L 400 100 L 400 400" style="fill:none;stroke:#000"/>\n</g>\n</svg>')
 open(sys.argv[2], "w").write(s)
 PY
 

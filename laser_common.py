@@ -1,5 +1,6 @@
 """Helpers shared by the laser extensions."""
 
+import math
 from collections import defaultdict
 
 import inkex
@@ -9,6 +10,45 @@ def mm_to_uu(svg, mm):
     """Millimetres to user units (accounts for the viewBox scale, which
     svg.unittouu ignores when the document has no namedview units)."""
     return inkex.units.convert_unit(f"{mm}mm", "px") / svg.scale
+
+
+# Note: always call path.to_absolute() before path.transform(): inkex's
+# Path.transform loses track of the subpath start when a relative `m` follows
+# an unclosed subpath, so everything after it comes out displaced.
+STEP_MM = 0.2  # target spacing of points when flattening curves
+MEETS_MM = 0.005  # an unclosed path this close to its start counts as closed
+
+
+def flatten(loop, uu_per_mm):
+    """Single-subpath inkex.Path -> list of (x, y) in mm."""
+    pts = []
+    for seg in loop.proxy_iterator():
+        if seg.letter in "zZ":
+            continue
+        if seg.letter in "mM":
+            pts.append((seg.end_point.x, seg.end_point.y))
+            continue
+        a = seg.previous_end_point
+        b = seg.end_point
+        if seg.letter in "lLhHvV":
+            n = 1
+        else:
+            span = math.hypot(b.x - a.x, b.y - a.y) / uu_per_mm
+            n = max(4, min(200, math.ceil(span * 1.5 / STEP_MM)))
+        for k in range(1, n + 1):
+            p = seg.point(k / n)
+            pts.append((p.x, p.y))
+    pts = [(x / uu_per_mm, y / uu_per_mm) for x, y in pts]
+    out = [pts[0]]
+    for p in pts[1:]:
+        if abs(p[0] - out[-1][0]) > 1e-4 or abs(p[1] - out[-1][1]) > 1e-4:
+            out.append(p)
+    return out
+
+
+def is_closed(loop, pts):
+    """A subpath is closed if it ends in Z or already ends where it started."""
+    return loop[-1].letter in "zZ" or math.dist(pts[0], pts[-1]) < MEETS_MM
 
 
 def _polygon(path):
