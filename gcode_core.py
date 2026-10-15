@@ -66,18 +66,19 @@ DEFAULT_TRAVEL_MM_MIN = 6000.0   # G0 speed when machine has no "travel_mm_min"
 _WORD = re.compile(r"([A-Za-z])\s*(-?\d*\.?\d+)")
 
 
-def estimate_time(text, machine=None):
-    """Estimate how long gcode text takes to run.  Returns (cut_s, travel_s).
-
-    Reads G0/G1 moves (absolute positioning, mm, modal F) and ignores
-    everything else.  Rapids (G0) run at machine["travel_mm_min"]; the real
-    machine also spends time accelerating, so treat this as a lower bound,
-    most noticeable on paths made of many tiny segments."""
+def parse_moves(text, machine=None):
+    """Read G0/G1 moves (absolute positioning, mm, modal F) out of gcode and
+    ignore everything else.  Returns a list of (kind, start, end, speed) with
+    speed in mm/min and kind one of:
+      "cut"     G1: the laser is firing
+      "lead"    G0 that carries its own F: a laser-off move at feed rate,
+                as used for the lead-in and lead-out of fill lines
+      "travel"  any other G0: a rapid, at machine["travel_mm_min"]"""
     travel_rate = (machine or {}).get("travel_mm_min", DEFAULT_TRAVEL_MM_MIN)
-    x = y = 0.0
+    pos = (0.0, 0.0)
     feed = travel_rate
     mode = None
-    cut = travel = 0.0
+    moves = []
     for line in text.splitlines():
         words = _WORD.findall(line.split(";", 1)[0])
         vals = {}
@@ -91,13 +92,33 @@ def estimate_time(text, machine=None):
             feed = vals["F"]
         if not ("X" in vals or "Y" in vals):
             continue
-        nx, ny = vals.get("X", x), vals.get("Y", y)
-        d = math.hypot(nx - x, ny - y)
-        x, y = nx, ny
-        if mode == 0:
-            travel += d / travel_rate * 60
-        elif mode == 1 and feed > 0:
-            cut += d / feed * 60
+        end = (vals.get("X", pos[0]), vals.get("Y", pos[1]))
+        if mode == 1:
+            moves.append(("cut", pos, end, feed))
+        elif mode == 0 and "F" in vals:
+            moves.append(("lead", pos, end, feed))
+        elif mode == 0:
+            moves.append(("travel", pos, end, travel_rate))
+        pos = end
+    return moves
+
+
+def estimate_time(text, machine=None):
+    """Estimate how long gcode text takes to run.  Returns (cut_s, travel_s);
+    travel includes laser-off lead moves.
+
+    Sums each move's length over its speed.  The real machine also spends
+    time accelerating, so treat this as a lower bound, most noticeable on
+    paths made of many tiny segments."""
+    cut = travel = 0.0
+    for kind, a, b, speed in parse_moves(text, machine):
+        if speed <= 0:
+            continue
+        t = _dist(a, b) / speed * 60
+        if kind == "cut":
+            cut += t
+        else:
+            travel += t
     return cut, travel
 
 

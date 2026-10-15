@@ -25,6 +25,11 @@ assert abs(cut - 10) < 1e-9 and abs(trav - (50 / 3000 * 60)) < 1e-9, (cut, trav)
 # F is modal; Y-only moves count; a bare "G1S0" has no motion.
 cut, _ = g.estimate_time("G1 X60 F1200\nG1 Y60\nG1S0\n", {})
 assert abs(cut - 6) < 1e-9, cut
+# A G0 with its own F is a laser-off lead move at that speed (100mm at F1200 = 5s).
+cut, trav = g.estimate_time("G0 X0 Y0\nG0 X100 Y0 F1200\nG1 X100 Y60\n", {"travel_mm_min": 3000})
+assert abs(trav - 5) < 1e-9 and abs(cut - 60 / 1200 * 60) < 1e-9, (cut, trav)
+assert [(k, b) for k, a, b, sp in g.parse_moves("G0 X5 Y5\nG0 X9 Y5 F100\nG1 Y9 F200\nM5\n")] == \
+    [("travel", (5, 5)), ("lead", (9, 5)), ("cut", (9, 9))]
 assert g.format_duration(3725) == "1h 02m 05s" and g.format_duration(59.6) == "1m 00s"
 # generate() puts the estimate in the header: 3 passes x 200mm at F140 = 257s.
 t, _ = g.generate(cfg, [("plywood-5mm", [], [sq(0, 0, 50)])])
