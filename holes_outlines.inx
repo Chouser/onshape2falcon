@@ -5,7 +5,7 @@
 
   <effect needs-live-preview="false" needs-document="true">
     <object-type>all</object-type>
-    <effects-menu><submenu name="Chouser-Laser"/></effects-menu>
+    <effects-menu><submenu name="onshape2falcon"/></effects-menu>
   </effect>
   <script><command reldir="extensions" interpreter="python">holes_outlines.py</command></script>
 </inkscape-extension>

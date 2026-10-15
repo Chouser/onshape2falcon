@@ -1,52 +1,65 @@
-# Chouser-Laser Inkscape extensions
+# onshape2falcon
 
-Inkscape 1.4 extensions for preparing Onshape SVG exports for laser cutting
-(gcode is produced afterward in LaserWeb). They appear under
-Extensions > Chouser-Laser.
+Inkscape 1.4 extensions that take a project from an Onshape SVG export to gcode
+for a Creality CR Falcon laser cutter. They appear under Extensions >
+onshape2falcon.
 
-Install by:
-
-    ./install.sh
+To install:  `./install.sh`
 
 ## Workflow
 
-1. **Import Onshape SVG** (`import_onshape.py`). Ungroups everything (baking in
-   transforms), deletes the page-sized background rect, replaces circles that
-   have crosshairs with true circles and drops the crosshairs, converts to
-   paths with the diagnostic style (light blue 50% fill, 0.1mm black 50%
-   stroke), runs Inkscape's Simplify, joins coincident endpoints into closed
-   loops (`ENDPOINT_TOLERANCE_MM`, 0.001), and splits the result into
-   independent parts with their holes. Finally it resizes the page to the
-   machine bed (`bed_x_mm` x `bed_y_mm` in `materials.json`, 400 x 400)
-   without rescaling the geometry, so parts outside the bed hang off the
-   page.
-2. **Kerf** (`kerf.py`). Outsets the selected paths (or all paths if nothing is
-   selected) by the chosen kerf with rounded joins, then splits into parts.
-   Dropdown presets: 0.09 mm, 0.04 mm, or a custom value.
-3. Move/duplicate parts by hand to use the material efficiently.
-4. **Separate Holes and Outlines** (`holes_outlines.py`). Produces an
-   `outlines` group then a `holes` group; each contains one `part-N` subgroup
-   per original path, with matching labels so holes pair with their outline.
-   Run this last: LaserWeb reorders paths within a group, so cut order is
-   controlled by selecting the hole groups and outline groups separately.
+1. **Import Onshape SVG** (`import_onshape.py`).
 
-5. **Export Gcode** (`gcode_export.py`), an alternative to step 4 and
-   LaserWeb. Put parts into groups whose Inkscape label (or id) is a material
-   name from `materials.json` (power %, feed mm/min, passes, plus a `machine`
-   section with bed size, gcode templates and `flip_y`). Each path uses the
-   nearest enclosing material group. If objects are selected, only those (and
-   the contents of selected groups) are exported, otherwise everything; paths in none abort with a list. Per
-   material it cuts all holes, then outlines, each nearest-neighbour ordered,
-   and writes `; Bounds:` (as `export-gcode.bb` did) with LF line endings.
-   Out-of-bounds is reported as a warning. Output goes to the file chosen in the dialog's file picker; if blank, next to the saved
-   SVG (`sodipodi:docbase`), else `~/proj/laser-cut/`. The full path is logged.
-   `install.sh` copies
-   `materials.json` too, saving any differing installed copy as `.bak`. The `machine` templates reproduce LaserWeb's marlin output for
-   the CR Falcon (see `p-card-box11-thin.gcode`); `flip_y` measures Y up from
-   the page bottom like LaserWeb.
+   Takes an Onshape-exported SVG and turns it into proper path objects:
 
-`laser_common.py` holds shared helpers (`mm_to_uu`, `nest_loops`,
-`split_loops`). Part paths put holes first and the outline last.
+   - Ungroups everything (baking in transforms)
+   - Deletes the page-sized background rect
+   - Replaces circles that have crosshairs with true circles and drops the crosshairs
+   - Converts to paths with style that lets you distinguish shape from hole and shows overlaps.
+   - Runs Inkscape's Simplify and joins coincident endpoints into closed
+   loops
+   - Splits the result into independent parts with their holes.
+   - Resizes the page to the machine bed (`bed_x_mm` x `bed_y_mm` in `materials.json`)
+
+   Now you can group shapes by material so you can apply kerfs.
+
+2. **Kerf** (`kerf.py`).
+
+   Outsets the selected paths (or all paths if nothing is selected) by the
+   chosen kerf with rounded joins.
+
+   Now you're all set to duplicate, position, rotate, etc. to form groups that will fit on your cutting material and bed. Also label each group with the material id from `materials.json` (e.g. `plywood-5mm`)
+
+3. **Export Gcode** (`gcode_export.py`)
+
+   Generates a Creality Falcon gcode file for the selected paths (or all paths if none selected), based on the nearest enclosing group with a material id as its name. If this doesn't work for your laser cutter, see "Separate Holes and Outlines below".
+
+   The generated gcode is arranged to cut all holes first, then outlines,
+   each nearest-neighbor ordered.
+
+4. **Separate Holes and Outlines** (`holes_outlines.py`)
+
+   Produces an `outlines` group and a `holes` group; each contains one `part-N`
+   subgroup per original path, with matching labels so holes pair with their
+   outline. The resulting SVG is useful as inputs to tools like LaserWeb in order to cut holes first.
+
+`laser_common.py` holds shared helpers for the plugins.
+
+## Using this yourself
+
+This was written for my own setup. Things you will probably want to
+change:
+
+- `laser-sd-sync.nix` (a NixOS module that copies the newest `*.gcode` to the
+  laser's SD card as `go.gcode` when the card is inserted) hardcodes the user
+  `chouser` (in the `sudo -u` calls), uid 1000 (the mount options and the
+  `/run/user/1000` paths) and `gcodeDir = "/home/chouser/proj/laser-cut"`. It
+  also expects the card's filesystem label to be `lasercut`.
+- `gcode_export.py` falls back to writing gcode in `~/proj/laser-cut`
+  (`DEFAULT_DIR`) when the file field is blank and Inkscape doesn't say where
+  the SVG is. Keep it in step with `gcodeDir` above.
+- `materials.json`: the material names, power, feed and passes are tuned to
+  my CR Falcon and the materials I like to use, so you'll likely need to change those as well, then run `./install` again.
 
 ## Testing
 
@@ -63,15 +76,14 @@ install is needed. The tests chain: run them in that order.
 
 Set `AGENT=false` to run Inkscape directly. Otherwise (the default) the tests
 call `./cmd-client NAME cmd-dir/`, which asks a server running on the host
-(outside the Claude Code sandbox, where `inkscape` is not installed and `inkex`
+(outside the contagent sandbox, where `inkscape` is not installed and `inkex`
 can't be imported because numpy is missing) to run a fixed command. The server
-script isn't in this repo; its `COMMANDS` table needs these entries, with the
-actions in the form `us.chouser.laser.<id-with-dashes>`:
+script isn't in this repo; its `COMMANDS` table needs these entries:
 
-    [inkscape]  import-onshape on sample-input01.svg  -> sample-output01.svg
-    [kerf]      select-all:all;us.chouser.laser.kerf  on sample-output01.svg -> sample-kerf01.svg
-    [gcode]     us.chouser.laser.gcode-export on sample-material01.svg -> sample-material-out01.svg
-    [holes]     select-all:all;us.chouser.laser.holes-outlines on sample-kerf01.svg -> sample-holes01.svg
+    [inkscape]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.import-onshape" "sample-input01.svg" --export-filename="sample-output01.svg"'
+    [kerf]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.kerf" "sample-output01.svg" --export-filename="sample-kerf01.svg"'
+    [holes]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.holes-outlines" "sample-kerf01.svg" --export-filename="sample-holes01.svg"'
+    [gcode]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.gcode-export" "sample-material01.svg" --export-filename="sample-material-out01.svg"'
 
 All use `INKSCAPE_PROFILE_DIR=test-profile/`. If the server isn't running,
 `cmd-client` blocks forever writing to the request FIFO; use `timeout`.
@@ -102,5 +114,3 @@ All use `INKSCAPE_PROFILE_DIR=test-profile/`. If the server isn't running,
   scraping of coordinates from `d` attributes gives wrong bounding boxes.
 - Measured kerf growth runs about 2% below the requested amount (about
   0.002 mm at 0.09 mm). Not investigated.
-- Not yet checked: whether LaserWeb keeps the nested group structure from
-  Separate Holes and Outlines intact.
