@@ -2,13 +2,13 @@
 # Run gcode_export on the output of the kerf test, with everything wrapped
 # in a group named for a material.
 # Server command needed in cmd-server COMMANDS:
-#   [gcode]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.gcode-export" "sample-material01.svg" --export-filename="sample-material-out01.svg"'
+#   [gcode]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.gcode-export" "test-out/sample-material01.svg" --export-filename="test-out/sample-material-out01.svg"'
 
 python3 tests/test_gcode_core.py || exit 1
 
-input="sample-kerf01.svg"
-wrapped="sample-material01.svg"
-output="sample-material01.gcode"
+input="test-out/sample-kerf01.svg"
+wrapped="test-out/sample-material01.svg"
+output="test-out/sample-material01.gcode"
 rm -f "$output"
 
 # Wrap every top-level element after <defs> in a plywood-5mm group.
@@ -22,9 +22,10 @@ s = s.replace("</g>\n</svg>", '<path d="M 100 100 L 400 100 L 400 400" style="fi
 open(sys.argv[2], "w").write(s)
 PY
 
+mkdir -p test-out
 cp extension/* test-profile/extensions/
 if [ "$AGENT" == "false" ]; then
-  INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.gcode-export" "$wrapped" --export-filename=sample-material-out01.svg
+  INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.gcode-export" "$wrapped" --export-filename=test-out/sample-material-out01.svg
 else
   log=$(./cmd-client gcode cmd-dir/ 2>&1); echo "$log"
   if echo "$log" | grep -q -E "Traceback|Cannot load|Paths not inside|No path objects"; then

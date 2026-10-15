@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Mark Shared Edges on two kerfed neighbours whose shared edge coincides, then Export Gcode on the result.
 # Server commands needed in cmd-server COMMANDS:
-#   [shared]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.mark-shared-edges" "sample-shared01.svg" --export-filename="sample-shared-out01.svg"'
-#   [gcode]  (as in test_gcode_export.sh, reading sample-material01.svg)
-# Check sample-shared-out01.svg by eye: red = skipped stretch, green = the
+#   [shared]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.mark-shared-edges" "test-out/sample-shared01.svg" --export-filename="test-out/sample-shared-out01.svg"'
+#   [gcode]  (as in test_gcode_export.sh, reading test-out/sample-material01.svg)
+# Check test-out/sample-shared-out01.svg by eye: red = skipped stretch, green = the
 # neighbour's edge that cuts it.
 
 python3 tests/test_shared_edges.py || exit 1
 
-cat > sample-shared01.svg <<'SVG'
+mkdir -p test-out
+cat > test-out/sample-shared01.svg <<'SVG'
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="400mm" height="400mm" viewBox="0 0 400 400" version="1.2"
      xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
@@ -26,11 +27,11 @@ log=$(./cmd-client shared cmd-dir/ 2>&1); echo "$log"
 if echo "$log" | grep -q -E "Traceback|No path objects"; then
   echo -e "\e[31mTest failed: extension error\e[0m"; exit 1
 fi
-grep -q 'inkscape:label="skipped"' sample-shared-out01.svg || { echo -e "\e[31mTest failed: no skipped group\e[0m"; exit 1; }
-n=$(grep -c 'data-loop="partB:0"' sample-shared-out01.svg)
+grep -q 'inkscape:label="skipped"' test-out/sample-shared-out01.svg || { echo -e "\e[31mTest failed: no skipped group\e[0m"; exit 1; }
+n=$(grep -c 'data-loop="partB:0"' test-out/sample-shared-out01.svg)
 [ "$n" = 1 ] || { echo -e "\e[31mTest failed: expected one stretch skipped on partB, got $n\e[0m"; exit 1; }
 
-cp sample-shared-out01.svg sample-material01.svg
+cp test-out/sample-shared-out01.svg test-out/sample-material01.svg
 log=$(./cmd-client gcode cmd-dir/ 2>&1); echo "$log"
 echo "$log" | grep -q "1 subpath(s) had shared edges left out" || { echo -e "\e[31mTest failed: export did not skip the shared edge\e[0m"; exit 1; }
-echo -e "\e[32mTest passed (inspect sample-shared-out01.svg visually)\e[0m"
+echo -e "\e[32mTest passed (inspect test-out/sample-shared-out01.svg visually)\e[0m"

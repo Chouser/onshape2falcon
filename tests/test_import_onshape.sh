@@ -2,9 +2,10 @@
 
 # Test script for ImportOnshape extension
 input="tests/data/sample-input01.svg"
-output="sample-output01.svg"
+output="test-out/sample-output01.svg"
 
 # Run extension
+mkdir -p test-out
 cp extension/* test-profile/extensions/
 if [ "$AGENT" == "false" ]; then
   INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="us.chouser.laser.import-onshape" "$input" --export-filename="$output"

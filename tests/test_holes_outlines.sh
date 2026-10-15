@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Run holes_outlines on the output of the kerf test.
 # Server command needed in cmd-server COMMANDS:
-#   [holes]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.holes-outlines" "sample-kerf01.svg" --export-filename="sample-holes01.svg"'
+#   [holes]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.holes-outlines" "test-out/sample-kerf01.svg" --export-filename="test-out/sample-holes01.svg"'
 
-input="sample-kerf01.svg"
-output="sample-holes01.svg"
+input="test-out/sample-kerf01.svg"
+output="test-out/sample-holes01.svg"
 
+mkdir -p test-out
 cp extension/* test-profile/extensions/
 if [ "$AGENT" == "false" ]; then
   INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.holes-outlines" "$input" --export-filename="$output"

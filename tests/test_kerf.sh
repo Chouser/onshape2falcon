@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Run the kerf extension on the output of the import test.
 # Server command needed in cmd-server COMMANDS:
-#   [kerf]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.kerf" "sample-output01.svg" --export-filename="sample-kerf01.svg"'
+#   [kerf]='INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.kerf" "test-out/sample-output01.svg" --export-filename="test-out/sample-kerf01.svg"'
 
-input="sample-output01.svg"
-output="sample-kerf01.svg"
+input="test-out/sample-output01.svg"
+output="test-out/sample-kerf01.svg"
 
+mkdir -p test-out
 cp extension/* test-profile/extensions/
 if [ "$AGENT" == "false" ]; then
   INKSCAPE_PROFILE_DIR=test-profile/ inkscape --actions="select-all:all;us.chouser.laser.kerf" "$input" --export-filename="$output"
