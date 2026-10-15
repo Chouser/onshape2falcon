@@ -46,6 +46,11 @@ To install:  `./install.sh`
 
    Generates a Creality Falcon gcode file for the selected paths (or all paths if none selected), based on the nearest enclosing group with a material id as its name. If this doesn't work for your laser cutter, see "Separate Holes and Outlines below".
 
+   The gcode header includes a `; Estimated time:` line, and the extension
+reports the same estimate when it runs. It sums each move's length over its
+feed rate (rapids use `travel_mm_min` in the `machine` section of
+`materials.json`) and ignores acceleration, so real runs will be a bit longer.
+
    The generated gcode is arranged to cut all holes first, then outlines,
    each nearest-neighbor ordered.
 

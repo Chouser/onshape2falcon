@@ -5,6 +5,7 @@
     "bed_y_mm": 400,
     "flip_y": true,
     "s_max": 1000,
+    "travel_mm_min": 6000,
     "header": ["G00 G17 G40 G54", "G21         ; Set units to mm", "G90         ; Absolute positioning", "M8"],
     "footer": ["M9", "G1S0", "M5", "G90", "; return to user-defined finish pos", "G0 X0 Y0", "M2"],
     "laser_on": "M3\nM3 S{s}",

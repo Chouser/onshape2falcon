@@ -155,6 +155,10 @@ class GcodeExport(inkex.EffectExtension):
             debug(f"{m}: {len(h)} hole(s), {len(o)} outline(s)")
         if skipped:
             debug(f"{skipped} subpath(s) had shared edges left out")
+        cut_s, travel_s = gcode_core.estimate_time(text, cfg["machine"])
+        debug(f"estimated run time: {gcode_core.format_duration(cut_s + travel_s)} "
+              f"(cutting {gcode_core.format_duration(cut_s)}, "
+              f"travel {gcode_core.format_duration(travel_s)})")
         debug(f"wrote {out}")
 
 

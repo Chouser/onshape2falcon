@@ -3,6 +3,7 @@ plain python.  Loops are lists of (x, y) points in mm, closed implicitly."""
 
 import json
 import math
+import re
 
 
 class OpenPath(list):
@@ -61,6 +62,56 @@ def _clean(loop):
     return out
 
 
+DEFAULT_TRAVEL_MM_MIN = 6000.0   # G0 speed when machine has no "travel_mm_min"
+_WORD = re.compile(r"([A-Za-z])\s*(-?\d*\.?\d+)")
+
+
+def estimate_time(text, machine=None):
+    """Estimate how long gcode text takes to run.  Returns (cut_s, travel_s).
+
+    Reads G0/G1 moves (absolute positioning, mm, modal F) and ignores
+    everything else.  Rapids (G0) run at machine["travel_mm_min"]; the real
+    machine also spends time accelerating, so treat this as a lower bound,
+    most noticeable on paths made of many tiny segments."""
+    travel_rate = (machine or {}).get("travel_mm_min", DEFAULT_TRAVEL_MM_MIN)
+    x = y = 0.0
+    feed = travel_rate
+    mode = None
+    cut = travel = 0.0
+    for line in text.splitlines():
+        words = _WORD.findall(line.split(";", 1)[0])
+        vals = {}
+        for letter, num in words:
+            letter = letter.upper()
+            if letter == "G" and float(num) in (0, 1):
+                mode = int(float(num))
+            elif letter in "XYF":
+                vals[letter] = float(num)
+        if "F" in vals:
+            feed = vals["F"]
+        if not ("X" in vals or "Y" in vals):
+            continue
+        nx, ny = vals.get("X", x), vals.get("Y", y)
+        d = math.hypot(nx - x, ny - y)
+        x, y = nx, ny
+        if mode == 0:
+            travel += d / travel_rate * 60
+        elif mode == 1 and feed > 0:
+            cut += d / feed * 60
+    return cut, travel
+
+
+def format_duration(seconds):
+    s = int(round(seconds))
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    if h:
+        return f"{h}h {m:02d}m {sec:02d}s"
+    if m:
+        return f"{m}m {sec:02d}s"
+    return f"{sec}s"
+
+
 def bounds(points):
     xs = [p[0] for p in points]
     ys = [p[1] for p in points]
@@ -107,5 +158,9 @@ def generate(cfg, jobs, page_height_mm=0.0):
         warnings.append(f"OUT OF BOUNDS: X{_fmt(x0)} Y{_fmt(y0)} to "
                         f"X{_fmt(x1)} Y{_fmt(y1)} (bed {m['bed_x_mm']}x{m['bed_y_mm']})")
     head = [f"; Bounds: X{_fmt(x0)} Y{_fmt(y0)} to X{_fmt(x1)} Y{_fmt(y1)}"]
-    text = "\n".join(head + m["header"] + lines + m["footer"]) + "\n"
+    body = m["header"] + lines + m["footer"]
+    cut_s, travel_s = estimate_time("\n".join(body), m)
+    head.append(f"; Estimated time: {format_duration(cut_s + travel_s)} "
+                f"(cutting {format_duration(cut_s)}, travel {format_duration(travel_s)})")
+    text = "\n".join(head + body) + "\n"
     return text, warnings
